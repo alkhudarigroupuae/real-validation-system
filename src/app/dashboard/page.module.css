@@ -1,0 +1,16 @@
+.page {
+  padding: 1.25rem;
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  gap: 1rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  color: #111827;
+}
+
+.subtitle {
+  color: #4b5563;
+}

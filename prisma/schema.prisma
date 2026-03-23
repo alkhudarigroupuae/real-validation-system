@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Validation {
+  id                    String   @id @default(cuid())
+  email                 String
+  stripeCustomerId      String
+  stripeSetupIntentId   String   @unique
+  stripePaymentMethodId String?
+  stripeSubscriptionId  String?  @unique
+  stripeSubscriptionStatus String?
+  status                String
+  verified              Boolean  @default(false)
+  requiresAction        Boolean  @default(false)
+  brand                 String?
+  last4                 String?
+  expMonth              Int?
+  expYear               Int?
+  errorCode             String?
+  errorMessage          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([email, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+}
+
+model VerificationGuard {
+  id            String   @id @default(cuid())
+  scope         String
+  key           String
+  failedAttempts Int     @default(0)
+  blockedUntil  DateTime?
+  lastFailureAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([scope, key])
+}
