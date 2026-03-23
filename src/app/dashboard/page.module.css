@@ -8,9 +8,9 @@
 
 .title {
   font-size: 1.5rem;
-  color: #111827;
+  color: var(--text-primary);
 }
 
 .subtitle {
-  color: #4b5563;
+  color: var(--text-secondary);
 }

@@ -18,6 +18,7 @@ type ResultState = {
   message: string;
   verified?: boolean;
   accessGranted?: boolean;
+  savedToDashboard?: boolean;
   customerId?: string;
   paymentMethodId?: string | null;
   subscriptionId?: string | null;
@@ -100,6 +101,7 @@ const ConfirmCardForm = ({
       message: finalPayload.message ?? statusToMessage(finalPayload.status),
       verified: finalPayload.verified,
       accessGranted: finalPayload.accessGranted,
+      savedToDashboard: finalPayload.savedToDashboard,
       customerId: finalPayload.stripeCustomerId,
       paymentMethodId: finalPayload.stripePaymentMethodId,
       subscriptionId: finalPayload.stripeSubscriptionId,
@@ -176,6 +178,7 @@ export const ValidationForm = () => {
         message: payload.message ?? statusToMessage(payload.status),
         verified: payload.verified,
         accessGranted: payload.accessGranted,
+        savedToDashboard: payload.savedToDashboard,
         customerId: payload.stripeCustomerId,
         paymentMethodId: payload.stripePaymentMethodId,
         subscriptionId: payload.stripeSubscriptionId,
@@ -265,6 +268,9 @@ export const ValidationForm = () => {
           <strong>{result.message}</strong>
           {result.accessGranted === false && (
             <p>Access is blocked until verification and subscription activation succeed.</p>
+          )}
+          {result.savedToDashboard === false && (
+            <p>Dashboard database is unavailable. Stripe result succeeded but was not stored.</p>
           )}
           {result.customerId && <p>Customer ID: {result.customerId}</p>}
           {result.paymentMethodId && <p>Payment Method ID: {result.paymentMethodId}</p>}

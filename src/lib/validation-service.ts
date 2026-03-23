@@ -12,10 +12,10 @@ type ServiceDeps = {
   db: typeof prisma;
 };
 
-const defaultDeps: ServiceDeps = {
+const getDefaultDeps = (): ServiceDeps => ({
   stripe: getStripe(),
   db: prisma,
-};
+});
 
 const lookupCustomerByEmail = async (deps: ServiceDeps, email: string) => {
   const existing = await deps.stripe.customers.list({
@@ -119,7 +119,7 @@ const ensureSubscriptionForCustomer = async (
 export const createCustomerAndSetupIntent = async (
   email: string,
   idempotencyKey?: string,
-  deps: ServiceDeps = defaultDeps,
+  deps: ServiceDeps = getDefaultDeps(),
 ) => {
   const customer = await lookupCustomerByEmail(deps, email);
   const setupIntent = await deps.stripe.setupIntents.create(
@@ -149,7 +149,7 @@ export const createCustomerAndSetupIntent = async (
 export const persistSetupIntentResult = async (
   setupIntentId: string,
   emailInput: string | undefined,
-  deps: ServiceDeps = defaultDeps,
+  deps: ServiceDeps = getDefaultDeps(),
 ) => {
   const setupIntent = await deps.stripe.setupIntents.retrieve(setupIntentId, {
     expand: ["payment_method"],
@@ -217,64 +217,95 @@ export const persistSetupIntentResult = async (
     }
   }
 
-  const record = await deps.db.validation.upsert({
-    where: {
-      stripeSetupIntentId: setupIntent.id,
-    },
-    update: {
-      email: resolvedEmail,
-      stripeCustomerId: customerId,
-      stripePaymentMethodId: paymentMethodId,
-      stripeSubscriptionId: subscriptionId,
-      stripeSubscriptionStatus: subscriptionStatus,
-      status,
-      verified,
-      requiresAction,
-      brand: card.brand,
-      last4: card.last4,
-      expMonth: card.expMonth,
-      expYear: card.expYear,
-      errorCode: safeError.errorCode,
-      errorMessage: safeError.errorMessage,
-    },
-    create: {
-      email: resolvedEmail,
-      stripeCustomerId: customerId,
-      stripeSetupIntentId: setupIntent.id,
-      stripePaymentMethodId: paymentMethodId,
-      stripeSubscriptionId: subscriptionId,
-      stripeSubscriptionStatus: subscriptionStatus,
-      status,
-      verified,
-      requiresAction,
-      brand: card.brand,
-      last4: card.last4,
-      expMonth: card.expMonth,
-      expYear: card.expYear,
-      errorCode: safeError.errorCode,
-      errorMessage: safeError.errorMessage,
-    },
-  });
+  try {
+    const record = await deps.db.validation.upsert({
+      where: {
+        stripeSetupIntentId: setupIntent.id,
+      },
+      update: {
+        email: resolvedEmail,
+        stripeCustomerId: customerId,
+        stripePaymentMethodId: paymentMethodId,
+        stripeSubscriptionId: subscriptionId,
+        stripeSubscriptionStatus: subscriptionStatus,
+        status,
+        verified,
+        requiresAction,
+        brand: card.brand,
+        last4: card.last4,
+        expMonth: card.expMonth,
+        expYear: card.expYear,
+        errorCode: safeError.errorCode,
+        errorMessage: safeError.errorMessage,
+      },
+      create: {
+        email: resolvedEmail,
+        stripeCustomerId: customerId,
+        stripeSetupIntentId: setupIntent.id,
+        stripePaymentMethodId: paymentMethodId,
+        stripeSubscriptionId: subscriptionId,
+        stripeSubscriptionStatus: subscriptionStatus,
+        status,
+        verified,
+        requiresAction,
+        brand: card.brand,
+        last4: card.last4,
+        expMonth: card.expMonth,
+        expYear: card.expYear,
+        errorCode: safeError.errorCode,
+        errorMessage: safeError.errorMessage,
+      },
+    });
 
-  return {
-    id: record.id,
-    email: record.email,
-    status,
-    verified,
-    requiresAction,
-    message:
-      verified
-        ? "Card verified successfully"
-        : status === "succeeded"
-          ? "Card verified but subscription activation failed. Access is blocked."
-        : status === "requires_action"
-          ? "Authentication required (3DS / OTP likely)"
-          : "Card invalid or not usable",
-    stripeSetupIntentId: record.stripeSetupIntentId,
-    stripePaymentMethodId: record.stripePaymentMethodId,
-    stripeCustomerId: record.stripeCustomerId,
-    stripeSubscriptionId: record.stripeSubscriptionId,
-    stripeSubscriptionStatus: record.stripeSubscriptionStatus,
-    accessGranted: verified,
-  };
+    return {
+      id: record.id,
+      email: record.email,
+      status,
+      verified,
+      requiresAction,
+      message:
+        verified
+          ? "Card verified successfully"
+          : status === "succeeded"
+            ? "Card verified but subscription activation failed. Access is blocked."
+          : status === "requires_action"
+            ? "Authentication required (3DS / OTP likely)"
+            : "Card invalid or not usable",
+      stripeSetupIntentId: record.stripeSetupIntentId,
+      stripePaymentMethodId: record.stripePaymentMethodId,
+      stripeCustomerId: record.stripeCustomerId,
+      stripeSubscriptionId: record.stripeSubscriptionId,
+      stripeSubscriptionStatus: record.stripeSubscriptionStatus,
+      accessGranted: verified,
+      savedToDashboard: true,
+    };
+  } catch (error) {
+    logError("Dashboard persistence failed; continuing with Stripe-only result", {
+      setupIntentId,
+      error,
+    });
+    return {
+      id: setupIntent.id,
+      email: resolvedEmail,
+      status,
+      verified,
+      requiresAction,
+      message:
+        (verified
+          ? "Card verified successfully"
+          : status === "succeeded"
+            ? "Card verified but subscription activation failed. Access is blocked."
+            : status === "requires_action"
+              ? "Authentication required (3DS / OTP likely)"
+              : "Card invalid or not usable") +
+        " (Dashboard database unavailable; result not persisted.)",
+      stripeSetupIntentId: setupIntent.id,
+      stripePaymentMethodId: paymentMethodId,
+      stripeCustomerId: customerId,
+      stripeSubscriptionId: subscriptionId,
+      stripeSubscriptionStatus: subscriptionStatus,
+      accessGranted: verified,
+      savedToDashboard: false,
+    };
+  }
 };

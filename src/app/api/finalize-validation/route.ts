@@ -37,6 +37,19 @@ export async function POST(request: NextRequest) {
     if (error instanceof ZodError) {
       return badRequest(error.issues[0]?.message ?? "Invalid request body.");
     }
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Invalid server environment")) {
+      return NextResponse.json(
+        { error: "Server configuration is incomplete. Please set required environment variables." },
+        { status: 503 },
+      );
+    }
+    if (message.includes("Can't reach database server")) {
+      return NextResponse.json(
+        { error: "Database is unavailable. Please check DATABASE_URL and database status." },
+        { status: 503 },
+      );
+    }
     logError("Failed to finalize validation", { error });
     return internalServerError();
   }

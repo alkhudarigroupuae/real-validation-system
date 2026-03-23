@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
+import { logError } from "@/lib/logger";
 
 type Scope = "email" | "ip";
 
@@ -51,24 +52,29 @@ const readGuard = async (scope: Scope, key: string) =>
   });
 
 export const assertNotBlocked = async (email: string, ip: string) => {
-  const now = new Date();
-  const [emailGuard, ipGuard] = await Promise.all([
-    readGuard("email", email),
-    readGuard("ip", ip),
-  ]);
+  try {
+    const now = new Date();
+    const [emailGuard, ipGuard] = await Promise.all([
+      readGuard("email", email),
+      readGuard("ip", ip),
+    ]);
 
-  const blockedUntil = [emailGuard?.blockedUntil, ipGuard?.blockedUntil]
-    .filter((value): value is Date => Boolean(value))
-    .sort((a, b) => b.getTime() - a.getTime())[0];
+    const blockedUntil = [emailGuard?.blockedUntil, ipGuard?.blockedUntil]
+      .filter((value): value is Date => Boolean(value))
+      .sort((a, b) => b.getTime() - a.getTime())[0];
 
-  if (blockedUntil && blockedUntil.getTime() > now.getTime()) {
-    return {
-      blocked: true,
-      retryAfterMs: blockedUntil.getTime() - now.getTime(),
-    };
+    if (blockedUntil && blockedUntil.getTime() > now.getTime()) {
+      return {
+        blocked: true,
+        retryAfterMs: blockedUntil.getTime() - now.getTime(),
+      };
+    }
+
+    return { blocked: false, retryAfterMs: 0 };
+  } catch (error) {
+    logError("Abuse guard unavailable, allowing request temporarily", { error });
+    return { blocked: false, retryAfterMs: 0 };
   }
-
-  return { blocked: false, retryAfterMs: 0 };
 };
 
 export const registerVerificationOutcome = async (
@@ -76,11 +82,15 @@ export const registerVerificationOutcome = async (
   ip: string,
   succeeded: boolean,
 ) => {
-  const now = new Date();
-  if (succeeded) {
-    await Promise.all([resetGuard("email", email), resetGuard("ip", ip)]);
-    return;
-  }
+  try {
+    const now = new Date();
+    if (succeeded) {
+      await Promise.all([resetGuard("email", email), resetGuard("ip", ip)]);
+      return;
+    }
 
-  await Promise.all([upsertFailure("email", email, now), upsertFailure("ip", ip, now)]);
+    await Promise.all([upsertFailure("email", email, now), upsertFailure("ip", ip, now)]);
+  } catch (error) {
+    logError("Failed to register verification guard outcome", { error });
+  }
 };

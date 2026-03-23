@@ -1,3 +1,37 @@
+:root {
+  --bg-page: #f8fafc;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --surface: #ffffff;
+  --surface-border: #e5e7eb;
+  --surface-border-soft: #f3f4f6;
+  --input-border: #d1d5db;
+  --input-bg: #ffffff;
+  --accent: #2563eb;
+  --accent-contrast: #ffffff;
+  --link: #2563eb;
+  --error-text: #b91c1c;
+  --error-bg: #fee2e2;
+  --error-border: #fecaca;
+}
+
+[data-theme="dark"] {
+  --bg-page: #0b1220;
+  --text-primary: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --surface: #111827;
+  --surface-border: #374151;
+  --surface-border-soft: #1f2937;
+  --input-border: #4b5563;
+  --input-bg: #0f172a;
+  --accent: #3b82f6;
+  --accent-contrast: #f9fafb;
+  --link: #60a5fa;
+  --error-text: #fecaca;
+  --error-bg: #3f1d1d;
+  --error-border: #7f1d1d;
+}
+
 html {
   height: 100%;
 }
@@ -12,8 +46,8 @@ body {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  color: #111827;
-  background: #f8fafc;
+  color: var(--text-primary);
+  background: var(--bg-page);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

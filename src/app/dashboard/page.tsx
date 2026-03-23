@@ -32,10 +32,18 @@ const mapRecord = (row: {
 });
 
 export default async function DashboardPage() {
-  const rows = await prisma.validation.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 500,
-  });
+  let rows: Awaited<ReturnType<typeof prisma.validation.findMany>> = [];
+  let dbError: string | null = null;
+
+  try {
+    rows = await prisma.validation.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 500,
+    });
+  } catch {
+    dbError =
+      "Dashboard is reachable, but database is not configured or unavailable. Set DATABASE_URL to a live PostgreSQL instance.";
+  }
 
   return (
     <main className={styles.page}>
@@ -43,6 +51,11 @@ export default async function DashboardPage() {
       <p className={styles.subtitle}>
         Internal operational view. No raw card numbers or CVC are stored.
       </p>
+      {dbError && (
+        <p className={styles.subtitle} style={{ color: "var(--error-text)" }}>
+          {dbError}
+        </p>
+      )}
       <DashboardTable rows={rows.map(mapRecord)} />
     </main>
   );

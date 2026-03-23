@@ -5,10 +5,50 @@ import { filterValidations } from "@/lib/dashboard";
 import type { ValidationRecord } from "@/lib/types";
 import styles from "./dashboard-table.module.css";
 
+const DASHBOARD_MODE =
+  process.env.NEXT_PUBLIC_STRIPE_DASHBOARD_MODE === "test" ? "test" : "live";
+const STRIPE_DASHBOARD_BASE =
+  DASHBOARD_MODE === "test" ? "https://dashboard.stripe.com/test" : "https://dashboard.stripe.com";
+
 const statusClass = (status: string) => {
   if (status === "succeeded") return styles.success;
   if (status === "requires_action") return styles.warning;
   return styles.failure;
+};
+
+const classifyFailureReason = (errorCode: string | null, errorMessage: string | null) => {
+  if (!errorCode && !errorMessage) return "-";
+
+  const code = (errorCode ?? "").toLowerCase();
+  const message = (errorMessage ?? "").toLowerCase();
+
+  if (code.includes("incorrect_cvc") || message.includes("cvc")) {
+    return "Declined: CVC is incorrect";
+  }
+  if (code.includes("expired_card") || message.includes("expired")) {
+    return "Declined: card is expired";
+  }
+  if (code.includes("insufficient_funds")) {
+    return "Declined: insufficient funds";
+  }
+  if (code.includes("do_not_honor") || code.includes("generic_decline")) {
+    return "Declined: bank rejected (do not honor)";
+  }
+  if (code.includes("incorrect_number")) {
+    return "Declined: card number invalid";
+  }
+  if (code.includes("processing_error")) {
+    return "Declined: processing error";
+  }
+  return errorMessage ?? errorCode ?? "Declined";
+};
+
+const stripeUrlFor = (id: string | null, type: "customer" | "setup_intent" | "subscription" | "payment_method") => {
+  if (!id) return null;
+  if (type === "customer") return `${STRIPE_DASHBOARD_BASE}/customers/${id}`;
+  if (type === "setup_intent") return `${STRIPE_DASHBOARD_BASE}/setup_intents/${id}`;
+  if (type === "subscription") return `${STRIPE_DASHBOARD_BASE}/subscriptions/${id}`;
+  return `${STRIPE_DASHBOARD_BASE}/search?query=${encodeURIComponent(id)}`;
 };
 
 export const DashboardTable = ({ rows }: { rows: ValidationRecord[] }) => {
@@ -57,7 +97,9 @@ export const DashboardTable = ({ rows }: { rows: ValidationRecord[] }) => {
               <th>Status</th>
               <th>Auth required</th>
               <th>Card</th>
+              <th>Failure reason</th>
               <th>Error</th>
+              <th>Stripe</th>
             </tr>
           </thead>
           <tbody>
@@ -94,12 +136,53 @@ export const DashboardTable = ({ rows }: { rows: ValidationRecord[] }) => {
                   {row.brand ? `${row.brand} •••• ${row.last4}` : "-"}
                   {row.expMonth && row.expYear ? ` (${row.expMonth}/${row.expYear})` : ""}
                 </td>
+                <td>{classifyFailureReason(row.errorCode, row.errorMessage)}</td>
                 <td>{row.errorMessage ?? "-"}</td>
+                <td>
+                  <div className={styles.linkStack}>
+                    <a
+                      className={styles.externalLink}
+                      href={stripeUrlFor(row.stripeCustomerId, "customer") ?? "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Customer
+                    </a>
+                    <a
+                      className={styles.externalLink}
+                      href={stripeUrlFor(row.stripeSetupIntentId, "setup_intent") ?? "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      SetupIntent
+                    </a>
+                    {row.stripeSubscriptionId && (
+                      <a
+                        className={styles.externalLink}
+                        href={stripeUrlFor(row.stripeSubscriptionId, "subscription") ?? "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Subscription
+                      </a>
+                    )}
+                    {row.stripePaymentMethodId && (
+                      <a
+                        className={styles.externalLink}
+                        href={stripeUrlFor(row.stripePaymentMethodId, "payment_method") ?? "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Payment method
+                      </a>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={11} className={styles.empty}>
+                <td colSpan={14} className={styles.empty}>
                   No records found
                 </td>
               </tr>
