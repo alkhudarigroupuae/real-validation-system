@@ -1,9 +1,14 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { DashboardTable } from "@/components/dashboard-table";
 import type { ValidationRecord } from "@/lib/types";
 import styles from "./page.module.css";
 
-export const dynamic = "force-dynamic";
+const AUTH_KEY = "dashboard-auth";
+const PASSWORD = "Belal100%";
 
 const mapRecord = (row: {
   id: string;
@@ -31,18 +36,38 @@ const mapRecord = (row: {
   updatedAt: row.updatedAt.toISOString(),
 });
 
-export default async function DashboardPage() {
-  let rows: Awaited<ReturnType<typeof prisma.validation.findMany>> = [];
-  let dbError: string | null = null;
+export default function DashboardPage() {
+  const router = useRouter();
+  const [rows, setRows] = useState<ValidationRecord[]>([]);
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  try {
-    rows = await prisma.validation.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 500,
-    });
-  } catch {
-    dbError =
-      "Dashboard is reachable, but database is not configured or unavailable. Set DATABASE_URL to a live PostgreSQL instance.";
+  useEffect(() => {
+    // Check auth
+    const auth = localStorage.getItem(AUTH_KEY);
+    if (auth !== PASSWORD) {
+      router.push("/login");
+      return;
+    }
+
+    // Fetch data
+    fetch("/api/dashboard-data")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) {
+          setDbError(data.error);
+        } else {
+          setRows(data.rows.map(mapRecord));
+        }
+      })
+      .catch(() => {
+        setDbError("Failed to load data");
+      })
+      .finally(() => setLoading(false));
+  }, [router]);
+
+  if (loading) {
+    return <div style={{ padding: "2rem" }}>Loading...</div>;
   }
 
   return (
@@ -56,7 +81,7 @@ export default async function DashboardPage() {
           {dbError}
         </p>
       )}
-      <DashboardTable rows={rows.map(mapRecord)} />
+      <DashboardTable rows={rows} />
     </main>
   );
 }

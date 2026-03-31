@@ -2,18 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 declare const process: { env: Record<string, string | undefined> };
 
-const PUBLIC_PATHS = ["/api/validation-result-webhook"];
+const PUBLIC_PATHS = ["/api/validation-result-webhook", "/login", "/api/auth/login", "/api/dashboard-data"];
 
 const isPublicPath = (pathname: string) =>
   PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
-
-const unauthorized = () =>
-  new NextResponse("Unauthorized", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="Internal Dashboard"',
-    },
-  });
 
 const withSecurityHeaders = (response: NextResponse) => {
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -24,44 +16,13 @@ const withSecurityHeaders = (response: NextResponse) => {
   return response;
 };
 
-const decodeBase64 = (value: string) => {
-  const globalBuffer = (globalThis as { Buffer?: any }).Buffer;
-  if (globalBuffer?.from) return globalBuffer.from(value, "base64").toString("utf8");
-  return atob(value);
-};
-
-const parseBasicAuth = (authHeader: string | null) => {
-  if (!authHeader) return null;
-  const match = authHeader.match(/^Basic\s+(.+)$/i);
-  if (!match) return null;
-  const decoded = decodeBase64(match[1]);
-  const separatorIndex = decoded.indexOf(":");
-  if (separatorIndex === -1) return null;
-  return {
-    username: decoded.slice(0, separatorIndex),
-    password: decoded.slice(separatorIndex + 1),
-  };
-};
-
 export function proxy(request: NextRequest) {
-  if (isPublicPath(request.nextUrl.pathname)) return withSecurityHeaders(NextResponse.next());
-
-  const user = process.env.DASHBOARD_BASIC_AUTH_USER;
-  const pass = process.env.DASHBOARD_BASIC_AUTH_PASS;
-  if (!user || !pass) {
-    return withSecurityHeaders(
-      NextResponse.json(
-        { error: "Dashboard auth environment is missing." },
-        { status: 500 },
-      ),
-    );
+  // Allow public paths
+  if (isPublicPath(request.nextUrl.pathname)) {
+    return withSecurityHeaders(NextResponse.next());
   }
 
-  const parsed = parseBasicAuth(request.headers.get("authorization"));
-  if (!parsed || parsed.username !== user || parsed.password !== pass) {
-    return withSecurityHeaders(unauthorized());
-  }
-
+  // Auth is handled client-side via localStorage redirect
   return withSecurityHeaders(NextResponse.next());
 }
 
